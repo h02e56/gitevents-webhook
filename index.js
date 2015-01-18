@@ -1,125 +1,111 @@
-var crypto = require('crypto');
-var request = require('request');
+var
+  crypto = require('crypto'),
+  async = require('async'),
+  parser = require('markdown-parse'),
+  request = require('request');
+
+/**
+ * Extract the label from the payload
+ */
+var label = function label(payload) {
+  return payload.label.name;
+};
+
+/**
+ * Extract the repository API URL from the payload
+ */
+var repositoryAPIURL = function repositoryAPIURL(payload) {
+  return payload.repository.url;
+};
 
 module.exports = function (config) {
-  if (!config.github) {
+  if (!config) {
     throw new Error('No configuration found');
   }
 
-  // extract 'github' config section
-  config = config.github;
-
-  /**
-   * Validate incoming HTTP headers
-   *
-   * Check if all required HTTP headers exist and
-   * throw an exception otherwise.
-   */
-  var validateHeaders = function(req) {
-    var validHeaders = [
-      'x-hub-signature',
-      'x-github-event',
-      'x-github-delivery'
-    ];
-    for (var i in validHeaders) {
-      if (!req.headers[validHeaders[i]]) {
-        throw new Error('No ' + validHeaders[i] + ' found on request');
-      }
-    }
-  }
-
-  /**
-   * Extract the label from the payload
-   */
-  var label = function(payload) {
-    return payload.label.name;
-  }
-
-  /**
-   * Extract the repository API URL from the payload
-   */
-  var repositoryAPIURL = function(payload) {
-    return payload.repository.url;
-  }
-
-  /**
-   * Load associated GitHub issues
-   *
-   * Load all associated GitHub issues by querying
-   * GitHub's API on the specific repo URL against
-   * the label found on the payload.
-   */
-  var loadIssues = function(payload, callback) {
-    // build the issues API query URL
-    var url = repositoryAPIURL(payload) +
-              '/issues?labels=' +
-              encodeURIComponent(label(payload));
-
-
-    var options = {
-      url: url,
-
-      // GitHub API requires a user agent
-      headers: {
-        'User-Agent': 'GitEvents'
-      }
-    };
-
-    // make the actual HTTP request
-    request(options, function (error, response, body) {
-      callback(events(JSON.parse(body)), error);
-    });
-  }
-
-  /**
-   * Generate a valid events object
-   */
-  var events = function(issues) {
-    // TODO: iterate through all the issues
-    // and generate events JSON.
-    //
-    // For now return all the issues
-    return issues;
+  if (config.github) {
+    config = config.github;
+  } else {
+    config = config;
   }
 
   return {
-    process: function(req, callback) {
-      validateHeaders(req);
+    process: function (payload, callback) {
+      async.parallel({
+        issues: function issues(fn) {
+          var url = repositoryAPIURL(payload) + '/issues?labels=' + encodeURIComponent(label(payload));
+          var options = {
+            url: url,
+            headers: {
+              'User-Agent': 'GitEvents'
+            }
+          };
 
-      // obtain the signature from the x-hub-signature header
-      var signature = req.headers['x-hub-signature'];
+          // make the actual HTTP request
+          request(options, function (error, response, body) {
+            if (body && typeof body === 'string') {
+              var
+                issues,
+                resultset = [];
 
-      // start a hasher
-      req.hasher = crypto.createHmac('sha1', config.key);
-      req.setEncoding('utf8');
-      var data = '';
+              try {
+                issues = JSON.parse(body);
+              } catch (e) {
+                return callback(e);
+              }
 
-      // whenever there's new incoming data update the hasher
-      req.on('data', function (chunk) {
-        data += chunk;
-        req.hasher.update(chunk);
-      });
+              async.each(issues, function (issue, fn) {
+                var is_talk = issue.labels.map(function (label) {
+                  if (label.name === config.talk_label) {
+                    return true;
+                  } else {
+                    return false;
+                  }
+                });
 
-      // when the request ends, compare signature and hash
-      req.on('end', function() {
-        var hash = 'sha1=' + req.hasher.digest('hex');
-        if (hash != signature) {
-          callback(null, 403);
-        } else {
-          // this is a valid webhook from GitHub
-
-          // convert body to JSON
-          try {
-            req.body = JSON.parse(data);
-          } catch (error) {
-            callback(error);
-          }
-
-          // load all associated issues
-          loadIssues(req.body, function(body, err) {
-            callback(body, err);
-          })
+                if (is_talk) {
+                  // Bloody YAML parser freaks out with @-handles
+                  if (issue.body.indexOf('@') > -1) {
+                    issue.body = issue.body.replace('@', '');
+                  }
+                  parser(issue.body, function (error, result) {
+                    // TODO: if there's no markdown in the issue description, maybe meta data isn't required?
+                    if (error) {
+                      fn(error);
+                    } else {
+                      resultset.push({
+                        'title': issue.title,
+                        'level': result.attributes.level,
+                        'language': result.attributes.language,
+                        'speaker': {
+                          'github': issue.user.login,
+                          'gravatar': issue.user.gravatar_id,
+                          'portrait': issue.user.avatar_url,
+                          'twitter': result.attributes.twitter,
+                        },
+                        'description': result.body
+                      });
+                      fn();
+                    }
+                  });
+                } else {
+                  // TODO: Jobs ... other labels?
+                  fn();
+                }
+              }, function (errors) {
+                console.log(resultset);
+              });
+            } else {
+              return callback(error);
+            }
+          });
+        },
+        milestone: function milestone(fn) {
+          // TODO: Get milestone information, if it's an event
+          fn();
         }
+      }, function (errors, results) {
+        console.log('done');
       });
     }
   };
