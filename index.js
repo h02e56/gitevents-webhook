@@ -109,7 +109,11 @@ module.exports = function (config) {
           // this is a valid webhook from GitHub
 
           // convert body to JSON
-          req.body = JSON.parse(data);
+          try {
+            req.body = JSON.parse(data);
+          } catch (error) {
+            callback(error);
+          }
 
           // load all associated issues
           loadIssues(req.body, function(body, err) {
