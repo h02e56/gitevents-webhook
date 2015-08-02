@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:bpedro/gitevents-webhook.git"
+    "url": "git@github.com:gitevents/gitevents-webhook.git"
   },
   "author": "Bruno Pedro <bpedro@brunopedro.com>",
   "license": "MIT",
