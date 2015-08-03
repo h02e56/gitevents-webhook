@@ -1,8 +1,0 @@
-{ host: '127.0.0.1:3000',
-  accept: '*/*',
-  'user-agent': 'GitHub-Hookshot/29237e4',
-  'x-github-event': 'issues',
-  'x-github-delivery': 'ff974880-3911-11e5-9415-60fb94e42456',
-  'content-type': 'application/json',
-  'x-hub-signature': 'sha1=71a8ccf0760893e9d9de1cc3380a14ac2c8ca6c2',
-  'content-length': '7770' }
