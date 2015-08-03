@@ -65,9 +65,10 @@ module.exports = function(config) {
                     id: payload.issue.id,
                     type: 'proposal',
                     speaker: {
+                      id: user.id,
                       name: user.name,
                       location: user.location,
-                      github: user.id,
+                      github: user.login,
                       gravatar: user.gravatar_id,
                       avatar: user.avatar_url
                     },
@@ -98,7 +99,7 @@ module.exports = function(config) {
                   }, function(error, proposals) {
                     if (error && error.code === 404) {
                       // create an array for all future proposals and store on GitHub.
-                      debug('proposals.json doesn\'t exist. Creating.')
+                      debug('proposals.json doesn\'t exist. Creating.');
                       proposals = [];
                       proposal.updated_at = new Date().toJSON();
                       proposal.created_at = new Date().toJSON();
@@ -141,7 +142,7 @@ module.exports = function(config) {
                         updatedProposals[id] = proposal;
                         message = 'Updated proposal by ' + proposal.speaker.github;
                       } else {
-                        debug('Push new proposal.')
+                        debug('Push new proposal.');
 
                         proposal.created_at = new Date().toJSON();
                         updatedProposals.push(proposal);
@@ -162,7 +163,7 @@ module.exports = function(config) {
                           debug(error);
                           throw new Error(error);
                         }
-                        debug('All done. Returning.')
+                        debug('All done. Returning.');
                         return callback(null, proposal);
                       });
                     }
