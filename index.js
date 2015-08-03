@@ -88,6 +88,10 @@ module.exports = function(config) {
                     proposal.level = body.attributes.level;
                   }
 
+                  if (body.attributes.month) {
+                    proposal.month = body.attributes.month;
+                  }
+
                   if (body.attributes.tags) {
                     proposal.tags = body.attributes.tags;
                   }
