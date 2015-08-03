@@ -11,16 +11,19 @@
     "url": "git@github.com:gitevents/gitevents-webhook.git"
   },
   "author": "Bruno Pedro <bpedro@brunopedro.com>",
-  "contributors": [{
-    "name": "Patrick Heneise",
-    "email": "patrick@blended.io"
-  }],
+  "contributors": [
+    {
+      "name": "Patrick Heneise",
+      "email": "patrick@blended.io"
+    }
+  ],
   "license": "MIT",
   "dependencies": {
     "async": "^0.9.0",
     "crypto": "0.0.3",
     "debug": "^2.2.0",
     "markdown-parse": "^0.2.1",
+    "moment": "^2.10.6",
     "request": "^2.51.0"
   },
   "devDependencies": {
