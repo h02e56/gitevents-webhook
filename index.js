@@ -17,11 +17,12 @@ module.exports = function (config) {
 
   return {
     process: function(payload, callback) {
+      debug('action: ' + payload.action);
       if (payload.action === 'opened') {
         // do nothing
         return callback(null);
       } else if (payload.action === 'labeled') {
-        debug('label: ', payload.label.name);
+        debug('label: ' + payload.label.name);
         if (payload.label.name === config.labels.proposal) {
           // process talk proposal
           var proposal = {
