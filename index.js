@@ -1,122 +1,187 @@
-var crypto = require('crypto');
-var request = require('request');
+'use strict';
 
-module.exports = function (config) {
-  if (!config.github) {
+var
+  debug = require('debug')('gitevents-webhook'),
+  crypto = require('crypto'),
+  parser = require('markdown-parse'),
+  GitHubApi = require('github');
+
+Object.prototype.findById = function(id) {
+  for (var i = 0; i < this.length; i++) {
+    if (this[i].id === id) {
+      return i;
+    }
+  }
+  return -1;
+};
+
+module.exports = function(config) {
+  if (!config) {
     throw new Error('No configuration found');
   }
 
-  // extract 'github' config section
-  config = config.github;
-
-  /**
-   * Validate incoming HTTP headers
-   *
-   * Check if all required HTTP headers exist and
-   * throw an exception otherwise.
-   */
-  var validateHeaders = function(req) {
-    var validHeaders = [
-      'x-hub-signature',
-      'x-github-event',
-      'x-github-delivery'
-    ];
-    for (var i in validHeaders) {
-      if (!req.headers[validHeaders[i]]) {
-        throw new Error('No ' + validHeaders[i] + ' found on request');
-      }
+  var github = new GitHubApi({
+    // required
+    version: '3.0.0',
+    // optional
+    debug: false,
+    protocol: 'https',
+    timeout: 5000,
+    headers: {
+      'user-agent': 'GitEvents' // GitHub is happy with a unique user agent
     }
-  }
-
-  /**
-   * Extract the label from the payload
-   */
-  var label = function(payload) {
-    return payload.label.name;
-  }
-
-  /**
-   * Extract the repository API URL from the payload
-   */
-  var repositoryAPIURL = function(payload) {
-    return payload.repository.url;
-  }
-
-  /**
-   * Load associated GitHub issues
-   *
-   * Load all associated GitHub issues by querying
-   * GitHub's API on the specific repo URL against
-   * the label found on the payload.
-   */
-  var loadIssues = function(payload, callback) {
-    // build the issues API query URL
-    var url = repositoryAPIURL(payload) +
-              '/issues?labels=' +
-              encodeURIComponent(label(payload));
-
-
-    var options = {
-      url: url,
-
-      // GitHub API requires a user agent
-      headers: {
-        'User-Agent': 'GitEvents'
-      }
-    };
-
-    // make the actual HTTP request
-    request(options, function (error, response, body) {
-      callback(events(JSON.parse(body)), error);
-    });
-  }
-
-  /**
-   * Generate a valid events object
-   */
-  var events = function(issues) {
-    // TODO: iterate through all the issues
-    // and generate events JSON.
-    //
-    // For now return all the issues
-    return issues;
-  }
+  });
 
   return {
-    process: function(req, callback) {
-      validateHeaders(req);
+    process: function(payload, callback) {
+      debug('action: ' + payload.action);
 
-      // obtain the signature from the x-hub-signature header
-      var signature = req.headers['x-hub-signature'];
-
-      // start a hasher
-      req.hasher = crypto.createHmac('sha1', config.key);
-      req.setEncoding('utf8');
-      var data = '';
-
-      // whenever there's new incoming data update the hasher
-      req.on('data', function (chunk) {
-        data += chunk;
-        req.hasher.update(chunk);
+      github.authenticate({
+        type: 'oauth',
+        token: config.github.token
       });
 
-      // when the request ends, compare signature and hash
-      req.on('end', function() {
-        var hash = 'sha1=' + req.hasher.digest('hex');
-        if (hash != signature) {
-          callback(null, 403);
-        } else {
-          // this is a valid webhook from GitHub
+      if (payload.action === 'opened') {
+        // do nothing
+        return callback(null);
+      } else if (payload.action === 'labeled') {
+        debug('label: ' + payload.label.name);
 
-          // convert body to JSON
-          req.body = JSON.parse(data);
+        github.user.getFrom({
+          user: payload.sender.login
+        }, function(error, user) {
 
-          // load all associated issues
-          loadIssues(req.body, function(body, err) {
-            callback(body, err);
-          })
-        }
-      });
+          if (payload.issue && payload.issue.body) {
+            var file;
+
+            parser(payload.issue.body, function(error, body) {
+              if (error) {
+                throw new Error(error);
+              } else {
+                if (payload.label.name === config.labels.proposal) {
+                  // process talk proposal
+
+                  var proposal = {
+                    id: payload.issue.id,
+                    type: 'proposal',
+                    speaker: {
+                      id: user.id,
+                      name: user.name,
+                      location: user.location,
+                      github: user.login,
+                      gravatar: user.gravatar_id,
+                      avatar: user.avatar_url
+                    },
+                    title: payload.issue.title,
+                    description: body.html
+                  };
+
+                  if (body.attributes.twitter) {
+                    proposal.speaker.twitter = body.attributes.twitter;
+                  }
+
+                  if (body.attributes.language) {
+                    proposal.language = body.attributes.language;
+                  }
+
+                  if (body.attributes.level) {
+                    proposal.level = body.attributes.level;
+                  }
+
+                  if (body.attributes.tags) {
+                    proposal.tags = body.attributes.tags;
+                  }
+
+                  github.repos.getContent({
+                    user: config.github.user,
+                    repo: config.github.repo,
+                    path: 'proposals.json'
+                  }, function(error, proposals) {
+                    if (error && error.code === 404) {
+                      // create an array for all future proposals and store on GitHub.
+                      debug('proposals.json doesn\'t exist. Creating.');
+                      proposals = [];
+                      proposal.updated_at = new Date().toJSON();
+                      proposal.created_at = new Date().toJSON();
+                      proposals.push(proposal);
+
+                      file = new Buffer(JSON.stringify(proposals, null, 2)).toString('base64');
+
+                      github.repos.createContent({
+                        user: config.github.user,
+                        repo: config.github.repo,
+                        path: 'proposals.json',
+                        content: file,
+                        message: 'Created proposals'
+                      }, function(error, res) {
+                        if (error) {
+                          throw new Error(error);
+                        }
+                        return callback(null, proposal);
+                      });
+                    } else if (error) {
+                      throw new Error(error);
+                    } else {
+                      // get proposals and update
+                      var updatedProposals, message;
+
+                      try {
+                        updatedProposals = JSON.parse(new Buffer(proposals.content, 'base64').toString('ascii'));
+                      } catch (error) {
+                        throw new Error(error);
+                      }
+
+                      var id = updatedProposals.findById(proposal.id);
+                      if (id !== -1) {
+                        debug('Proposal exists. Update.');
+
+                        // update the proposal; don't change the speaker
+                        proposal.updated_at = new Date().toJSON();
+                        proposal.created_at = updatedProposals[id].created_at;
+                        proposal.speaker = updatedProposals[id].speaker;
+                        updatedProposals[id] = proposal;
+                        message = 'Updated proposal by ' + proposal.speaker.github;
+                      } else {
+                        debug('Push new proposal.');
+
+                        proposal.created_at = new Date().toJSON();
+                        updatedProposals.push(proposal);
+                        message = 'New proposal by ' + proposal.speaker.github;
+                      }
+
+                      file = new Buffer(JSON.stringify(updatedProposals, null, 2)).toString('base64');
+
+                      github.repos.updateFile({
+                        user: config.github.user,
+                        repo: config.github.repo,
+                        path: 'proposals.json',
+                        sha: proposals.sha,
+                        content: file,
+                        message: message
+                      }, function (error, res) {
+                        if (error) {
+                          debug(error);
+                          throw new Error(error);
+                        }
+                        debug('All done. Returning.');
+                        return callback(null, proposal);
+                      });
+                    }
+                  });
+                } else if (payload.issue.label === config.labels.job) {
+                  // process jobs
+                  return callback(null);
+                } else {
+                  // process others
+                  return callback(null);
+                }
+              }
+            });
+          }
+        });
+      } else {
+        throw new Error('Unknown error occured.');
+      }
     }
   };
 };
