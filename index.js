@@ -1,11 +1,9 @@
 'use strict';
 
-var
-  debug = require('debug')('gitevents-webhook'),
-  crypto = require('crypto'),
-  parser = require('markdown-parse'),
-  moment = require('moment'),
-  GitHubApi = require('github');
+var debug = require('debug')('gitevents-webhook');
+var parser = require('markdown-parse');
+var moment = require('moment');
+var GitHubApi = require('github');
 
 Object.prototype.findById = function(id) {
   for (var i = 0; i < this.length; i++) {
@@ -18,7 +16,7 @@ Object.prototype.findById = function(id) {
 
 module.exports = function(config) {
   if (!config) {
-    throw new Error('No configuration found');
+    return new Error('No configuration found');
   }
 
   var github = new GitHubApi({
@@ -55,7 +53,7 @@ module.exports = function(config) {
 
             parser(payload.issue.body, function(error, body) {
               if (error) {
-                throw new Error(error);
+                return callback(new Error(error));
               } else {
                 if (payload.label.name === config.labels.proposal) {
                   // process talk proposal
@@ -115,22 +113,23 @@ module.exports = function(config) {
                         path: 'proposals.json',
                         content: file,
                         message: 'Created proposals'
-                      }, function(error, res) {
+                      }, function(error) {
                         if (error) {
-                          throw new Error(error);
+                          return callback(new Error(error));
                         }
                         return callback(null, proposal);
                       });
                     } else if (error) {
-                      throw new Error(error);
+                      return callback(new Error(error));
                     } else {
                       // get proposals and update
-                      var updatedProposals, message;
+                      var updatedProposals;
+                      var message;
 
                       try {
                         updatedProposals = JSON.parse(new Buffer(proposals.content, 'base64').toString('ascii'));
                       } catch (error) {
-                        throw new Error(error);
+                        return callback(new Error(error));
                       }
 
                       var id = updatedProposals.findById(proposal.id);
@@ -160,10 +159,10 @@ module.exports = function(config) {
                         sha: proposals.sha,
                         content: file,
                         message: message
-                      }, function(error, res) {
+                      }, function(error) {
                         if (error) {
                           debug(error);
-                          throw new Error(error);
+                          return callback(new Error(error));
                         }
                         debug('All done. Returning.');
                         return callback(null, proposal);
@@ -179,28 +178,28 @@ module.exports = function(config) {
                     path: 'proposals.json'
                   }, function(error, proposals) {
                     if (error) {
-                      throw new Error(error);
+                      return callback(new Error(error));
                     } else {
                       // get proposals and update
-                      var readableProposals, message;
+                      var readableProposals;
 
                       try {
                         readableProposals = JSON.parse(new Buffer(proposals.content, 'base64').toString('ascii'));
                       } catch (error) {
-                        throw new Error(error);
+                        return callback(new Error(error));
                       }
 
                       var proposalId = readableProposals.findById(payload.issue.id);
                       if (proposalId === -1) {
                         debug('Proposal doesn\'t exist');
-                        throw new Error('Proposal doesn\'t exist.');
+                        return callback(new Error('Proposal doesn\'t exist.'));
                       } else {
                         debug('Proposal found. Id: ' + proposalId);
                         var talk = readableProposals[proposalId];
 
                         if (!payload.issue.milestone) {
                           debug('Missing milestone');
-                          throw new Error('No Milestone (=Event) defined.');
+                          return callback(new Error('No Milestone (=Event) defined.'));
                         } else {
 
                           var date = moment(payload.issue.milestone.due_on).toArray();
@@ -246,9 +245,9 @@ module.exports = function(config) {
                                 path: 'events-' + new Date(payload.issue.created_at).getFullYear() + '.json',
                                 content: file,
                                 message: 'Created events'
-                              }, function(error, res) {
+                              }, function(error) {
                                 if (error) {
-                                  throw new Error(error);
+                                  return callback(new Error(error));
                                 }
                                 return callback(null, event);
                               });
@@ -261,7 +260,7 @@ module.exports = function(config) {
                                 readableEvents = JSON.parse(new Buffer(events.content, 'base64').toString('ascii'));
                               } catch (error) {
                                 debug('JSON parse error', error);
-                                throw new Error(error);
+                                return callback(new Error(error));
                               }
 
                               var github_event_id = payload.issue.milestone.id;
@@ -311,10 +310,10 @@ module.exports = function(config) {
                                 sha: events.sha,
                                 content: file,
                                 message: message
-                              }, function(error, res) {
+                              }, function(error) {
                                 if (error) {
                                   debug(error);
-                                  throw new Error(error);
+                                  return callback(new Error(error));
                                 }
 
                                 debug('Removing proposal.');
@@ -328,10 +327,10 @@ module.exports = function(config) {
                                   sha: proposals.sha,
                                   content: file,
                                   message: 'Moved proposal to talks.'
-                                }, function(error, res) {
+                                }, function(error) {
                                   if (error) {
                                     debug(error);
-                                    throw new Error(error);
+                                    return callback(new Error(error));
                                   }
 
                                   debug('All done. Returning.');
@@ -356,7 +355,7 @@ module.exports = function(config) {
           }
         });
       } else {
-        throw new Error('Unknown error occured.');
+        return callback(new Error('Unknown error occured.'));
       }
     }
   };
