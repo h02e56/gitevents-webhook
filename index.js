@@ -1,11 +1,10 @@
 'use strict';
 
-var
-  debug = require('debug')('gitevents-webhook'),
-  crypto = require('crypto'),
-  parser = require('markdown-parse'),
-  moment = require('moment'),
-  GitHubApi = require('github');
+var debug = require('debug')('gitevents-webhook');
+var crypto = require('crypto');
+var parser = require('markdown-parse');
+var moment = require('moment');
+var GitHubApi = require('github');
 
 Object.prototype.findById = function(id) {
   for (var i = 0; i < this.length; i++) {
@@ -125,7 +124,8 @@ module.exports = function(config) {
                       return callback(new Error(error));
                     } else {
                       // get proposals and update
-                      var updatedProposals, message;
+                      var updatedProposals;
+                      var message;
 
                       try {
                         updatedProposals = JSON.parse(new Buffer(proposals.content, 'base64').toString('ascii'));
@@ -182,7 +182,8 @@ module.exports = function(config) {
                       return callback(new Error(error));
                     } else {
                       // get proposals and update
-                      var readableProposals, message;
+                      var readableProposals;
+                      var message;
 
                       try {
                         readableProposals = JSON.parse(new Buffer(proposals.content, 'base64').toString('ascii'));
