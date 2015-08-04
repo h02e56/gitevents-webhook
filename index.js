@@ -1,7 +1,6 @@
 'use strict';
 
 var debug = require('debug')('gitevents-webhook');
-var crypto = require('crypto');
 var parser = require('markdown-parse');
 var moment = require('moment');
 var GitHubApi = require('github');
@@ -17,7 +16,7 @@ Object.prototype.findById = function(id) {
 
 module.exports = function(config) {
   if (!config) {
-    return callback(new Error('No configuration found'));
+    return new Error('No configuration found');
   }
 
   var github = new GitHubApi({
@@ -114,7 +113,7 @@ module.exports = function(config) {
                         path: 'proposals.json',
                         content: file,
                         message: 'Created proposals'
-                      }, function(error, res) {
+                      }, function(error) {
                         if (error) {
                           return callback(new Error(error));
                         }
@@ -160,7 +159,7 @@ module.exports = function(config) {
                         sha: proposals.sha,
                         content: file,
                         message: message
-                      }, function(error, res) {
+                      }, function(error) {
                         if (error) {
                           debug(error);
                           return callback(new Error(error));
@@ -183,7 +182,6 @@ module.exports = function(config) {
                     } else {
                       // get proposals and update
                       var readableProposals;
-                      var message;
 
                       try {
                         readableProposals = JSON.parse(new Buffer(proposals.content, 'base64').toString('ascii'));
@@ -247,7 +245,7 @@ module.exports = function(config) {
                                 path: 'events-' + new Date(payload.issue.created_at).getFullYear() + '.json',
                                 content: file,
                                 message: 'Created events'
-                              }, function(error, res) {
+                              }, function(error) {
                                 if (error) {
                                   return callback(new Error(error));
                                 }
@@ -312,7 +310,7 @@ module.exports = function(config) {
                                 sha: events.sha,
                                 content: file,
                                 message: message
-                              }, function(error, res) {
+                              }, function(error) {
                                 if (error) {
                                   debug(error);
                                   return callback(new Error(error));
@@ -329,7 +327,7 @@ module.exports = function(config) {
                                   sha: proposals.sha,
                                   content: file,
                                   message: 'Moved proposal to talks.'
-                                }, function(error, res) {
+                                }, function(error) {
                                   if (error) {
                                     debug(error);
                                     return callback(new Error(error));
