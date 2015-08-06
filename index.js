@@ -289,7 +289,7 @@ module.exports = function(config) {
                                     talk.accepted_at = new Date().toJSON();
                                     talk.type = 'talk';
                                     readableEvents[foundEventId].talks.push(talk);
-                                    message = 'Added talk by ' + proposal.speaker.github;
+                                    message = 'Added talk by ' + talk.speaker.github;
                                   }
                                 } else {
                                   debug('No event found. Creating and adding talk.');
@@ -299,7 +299,7 @@ module.exports = function(config) {
                                   talk.type = 'talk';
                                   event.talks.push(talk);
                                   readableEvents.push(event);
-                                  message = 'Created new event and added talk by ' + proposal.speaker.github;
+                                  message = 'Created new event and added talk by ' + talk.speaker.github;
                                 }
 
                                 debug('Writing file.');
