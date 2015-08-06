@@ -265,8 +265,8 @@ module.exports = function(config) {
                                   reject(new Error(error));
                                 }
 
-                                var github_event_id = payload.issue.milestone.id;
-                                var foundEventId = readableEvents.findById(github_event_id);
+                                var githubEventId = payload.issue.milestone.id;
+                                var foundEventId = readableEvents.findById(githubEventId);
                                 var message;
 
                                 if (foundEventId !== -1) {
