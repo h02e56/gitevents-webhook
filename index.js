@@ -14,6 +14,32 @@ Object.prototype.findById = function(id) {
   return -1;
 };
 
+var github
+
+var githubStuff = {
+  init: function init(config) {
+    github = new GitHubApi({
+      version: '3.0.0',
+      debug: config.debug,
+      protocol: 'https',
+      timeout: 5000,
+      headers: {
+        'user-agent': 'GitEvents'
+      }
+    });
+    return this
+  },
+  authenticate: function authenticate(token) {
+    if(!github) return debug('github module not initiated')
+
+    github.authenticate({
+      type: 'oauth',
+      token: token
+    });
+    return this;
+  }
+}
+
 module.exports = function(config) {
   return function process(payload) {
     return new Promise(
@@ -24,21 +50,10 @@ module.exports = function(config) {
           debug('GitEvents webhook plugin is not activated. Please provide GitHub credentials.');
           reject(new Error('no api key'));
         }
-
-        var github = new GitHubApi({
-          version: '3.0.0',
-          debug: config.debug,
-          protocol: 'https',
-          timeout: 5000,
-          headers: {
-            'user-agent': 'GitEvents'
-          }
-        });
-
-        github.authenticate({
-          type: 'oauth',
-          token: config.github.token
-        });
+        //init github module and auth
+        githubStuff
+          .init(config)
+          .authenticate(config.github.token)
 
         if (payload.action === 'opened') {
           // do nothing
